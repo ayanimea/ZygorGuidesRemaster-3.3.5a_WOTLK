@@ -24,6 +24,24 @@ end
 
 local unusedMarkers = {}
 
+-- Patch QuestPOI_HideButtons to guard against nil buttons.
+-- Astrolabe's processingFrame:Show() triggers Astrolabe:OnShow which calls
+-- safe_SetMapZoom -> SetMapZoom -> WorldMapFrame update chain ->
+-- QuestPOI_HideButtons, which crashes when POI buttons haven't been created yet.
+do
+	local orig_QuestPOI_HideButtons = QuestPOI_HideButtons
+	if orig_QuestPOI_HideButtons then
+		QuestPOI_HideButtons = function(parentName, buttonType, numButtons)
+			local buttonName = "poi"..parentName..buttonType.."_"
+			for i = 1, numButtons do
+				local poiButton = _G[buttonName..i]
+				if poiButton then
+					poiButton:Hide()
+				end
+			end
+		end
+	end
+end
 
 local last_distance=0
 local speed=0
