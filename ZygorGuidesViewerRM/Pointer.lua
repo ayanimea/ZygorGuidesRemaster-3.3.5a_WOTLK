@@ -39,10 +39,10 @@ do
 		patched = true
 		local orig = QuestPOI_HideButtons
 		QuestPOI_HideButtons = function(parentName, buttonType, numButtons)
-			local ok, ... = pcall(orig, parentName, buttonType, numButtons)
+			local ok = pcall(orig, parentName, buttonType, numButtons)
 			if ok then
-				-- Preserve any return values from the original implementation.
-				return ...
+				-- Original implementation succeeded; nothing else to do.
+				return
 			end
 			-- Original crashed (nil button not yet created); use nil-safe fallback.
 			local buttonName = "poi"..parentName..buttonType.."_"
