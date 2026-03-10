@@ -39,14 +39,17 @@ do
 		patched = true
 		local orig = QuestPOI_HideButtons
 		QuestPOI_HideButtons = function(parentName, buttonType, numButtons)
-			if not pcall(orig, parentName, buttonType, numButtons) then
-				-- Original crashed (nil button not yet created); use nil-safe fallback.
-				local buttonName = "poi"..parentName..buttonType.."_"
-				for i = 1, numButtons do
-					local poiButton = _G[buttonName..i]
-					if poiButton then
-						poiButton:Hide()
-					end
+			local ok, ... = pcall(orig, parentName, buttonType, numButtons)
+			if ok then
+				-- Preserve any return values from the original implementation.
+				return ...
+			end
+			-- Original crashed (nil button not yet created); use nil-safe fallback.
+			local buttonName = "poi"..parentName..buttonType.."_"
+			for i = 1, numButtons do
+				local poiButton = _G[buttonName..i]
+				if poiButton then
+					poiButton:Hide()
 				end
 			end
 		end
@@ -59,10 +62,15 @@ do
 		local f = CreateFrame("Frame")
 		f:RegisterEvent("ADDON_LOADED")
 		f:RegisterEvent("PLAYER_LOGIN")
-		f:SetScript("OnEvent", function(self)
-			if patched then self:UnregisterAllEvents(); return end
-			PatchQuestPOI_HideButtons()
+		f:SetScript("OnEvent", function(self, event)
 			if patched then
+				self:UnregisterAllEvents()
+				return
+			end
+			PatchQuestPOI_HideButtons()
+			-- Stop listening once patched, or after PLAYER_LOGIN to avoid
+			-- retrying indefinitely on clients where QuestPOI_HideButtons never exists.
+			if patched or event == "PLAYER_LOGIN" then
 				self:UnregisterAllEvents()
 			end
 		end)
