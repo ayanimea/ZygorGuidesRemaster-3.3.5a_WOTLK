@@ -45,8 +45,9 @@ do
 				return
 			end
 			-- Original crashed (nil button not yet created); use nil-safe fallback.
+			local safeNum = tonumber(numButtons) or 0
 			local buttonName = "poi"..parentName..buttonType.."_"
-			for i = 1, numButtons do
+			for i = 1, safeNum do
 				local poiButton = _G[buttonName..i]
 				if poiButton then
 					poiButton:Hide()
