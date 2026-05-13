@@ -24,6 +24,67 @@ end
 
 local unusedMarkers = {}
 
+-- Patch QuestPOI_HideButtons to guard against nil buttons.
+-- Astrolabe's processingFrame:Show() triggers Astrolabe:OnShow which calls
+-- safe_SetMapZoom -> SetMapZoom -> WorldMapFrame update chain ->
+-- QuestPOI_HideButtons, which crashes when POI buttons haven't been created yet.
+-- The patch detects the known failure condition (missing POI button globals) upfront
+-- and uses a nil-safe loop in that case, so unrelated errors always surface normally.
+-- A deferred event handler handles the case where Blizzard_WorldMap (which defines
+-- QuestPOI_HideButtons) loads on demand after this file loads.
+do
+	local patched = false
+
+	local function PatchQuestPOI_HideButtons()
+		if patched or not QuestPOI_HideButtons then return end
+		patched = true
+		local orig = QuestPOI_HideButtons
+		QuestPOI_HideButtons = function(parentName, buttonType, numButtons)
+			local safeNum = tonumber(numButtons) or 0
+			local buttonName = "poi"..parentName..buttonType.."_"
+			-- Pre-check: if any expected button global is absent the original would
+			-- crash. Use the nil-safe loop in that case so unrelated errors from orig
+			-- still surface naturally (no pcall needed).
+			for i = 1, safeNum do
+				if not _G[buttonName..i] then
+					-- At least one button is missing; run nil-safe fallback for all.
+					for j = 1, safeNum do
+						local poiButton = _G[buttonName..j]
+						if poiButton then
+							poiButton:Hide()
+						end
+					end
+					return
+				end
+			end
+			orig(parentName, buttonType, safeNum)
+		end
+	end
+
+	PatchQuestPOI_HideButtons()
+
+	if not patched then
+		-- Watch for Blizzard_WorldMap (which defines QuestPOI_HideButtons) in case
+		-- it loads on demand. PLAYER_LOGIN is a one-shot fallback for other timing
+		-- scenarios; we keep ADDON_LOADED active until the patch is applied.
+		local f = CreateFrame("Frame")
+		f:RegisterEvent("ADDON_LOADED")
+		f:RegisterEvent("PLAYER_LOGIN")
+		f:SetScript("OnEvent", function(self, event, addonName)
+			if event == "ADDON_LOADED" and addonName ~= "Blizzard_WorldMap" then
+				return
+			end
+			PatchQuestPOI_HideButtons()
+			if patched then
+				self:UnregisterAllEvents()
+			elseif event == "PLAYER_LOGIN" then
+				-- PLAYER_LOGIN won't fire again; drop it but keep watching for
+				-- Blizzard_WorldMap in case it loads on demand after login.
+				self:UnregisterEvent("PLAYER_LOGIN")
+			end
+		end)
+	end
+end
 
 local last_distance=0
 local speed=0
