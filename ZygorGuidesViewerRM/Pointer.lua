@@ -57,7 +57,7 @@ do
 					return
 				end
 			end
-			orig(parentName, buttonType, numButtons)
+			orig(parentName, buttonType, safeNum)
 		end
 	end
 
